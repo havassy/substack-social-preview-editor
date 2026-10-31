@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Substack social preview szerkesztő</title>
+<style>
+:root{
+  --bg:#f4f7fa;--card:#fff;--ink:#17212b;--muted:#647383;--line:#d7e0e7;
+  --blue:#16658a;--blue2:#0f4f70;--green:#2d7a58;--danger:#c4483b;--soft:#edf4f8;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink)}
+main{width:min(1500px,calc(100% - 24px));margin:22px auto 40px}
+h1{margin:0 0 8px;font-size:clamp(1.55rem,3vw,2.35rem)}
+.lead{margin:0 0 20px;color:var(--muted);max-width:1080px}
+.layout{display:grid;grid-template-columns:360px 1fr;gap:18px;align-items:start}
+.panel,.card{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:0 8px 26px rgba(23,33,43,.06)}
+.panel{padding:17px;position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+.card{padding:15px}
+h2{font-size:1.05rem;margin:0 0 10px}
+.section{padding-top:14px;margin-top:14px;border-top:1px solid #e7edf1}
+.section:first-of-type{border-top:0;padding-top:0;margin-top:0}
+label{display:block;font-size:.87rem;font-weight:750;margin:10px 0 5px}
+input[type="text"],textarea,select,input[type="number"],input[type="range"]{width:100%}
+input[type="text"],textarea,select,input[type="number"]{padding:9px 10px;border:1px solid #cbd7e0;border-radius:9px;background:#fff;color:var(--ink);font:inherit}
+textarea{min-height:62px;resize:vertical}
+input[type="file"]{width:100%;font-size:.88rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.check{display:flex;gap:8px;align-items:center;font-size:.87rem;margin-top:9px;font-weight:600}
+.check input{width:auto}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
+button{border:0;border-radius:9px;padding:10px 11px;font-weight:800;cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.5}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #e4a52f;outline-offset:2px}
+.primary{background:var(--blue);color:#fff}
+.secondary{background:#e8f1f6;color:#174860}
+.danger{background:#faece9;color:#7b3128}
+.tip{font-size:.82rem;color:var(--muted);line-height:1.4;margin-top:6px}
+.stage{display:grid;gap:16px}
+.canvasShell{position:relative;background:#eef3f6;border-radius:12px;padding:10px;overflow:auto}
+#editorCanvas{display:block;max-width:100%;height:auto;margin:auto;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.08);touch-action:none;cursor:grab}
+#editorCanvas.dragging{cursor:grabbing}
+.previews{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.cropBox{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:10px}
+.cropBox canvas{display:block;width:100%;height:auto;background:#fff}
+.note{font-size:.83rem;color:var(--muted);margin:7px 0 0}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.81rem;color:var(--muted);margin-top:8px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.status{padding:9px 11px;background:#edf6f1;color:#245f46;border-radius:10px;font-size:.84rem;margin-top:12px}
+.hidden{display:none!important}
+/* Új: tényleges export-felbontáshoz viszonyított százalék és visszajelzés. */
+.zoomLabel{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.zoomValue{font-size:1.02rem;font-weight:850;color:var(--blue2);font-variant-numeric:tabular-nums}
+.zoomValue.warn{color:#a53d25}
+.zoomActions{display:flex;gap:8px;margin:8px 0}
+.zoomActions button{width:100%}
+.zoomInfo{font-size:.82rem;line-height:1.45;background:#edf6f1;color:#225b44;border-radius:9px;padding:8px 10px;margin:8px 0 10px}
+.zoomInfo.warn{background:#fff0e9;color:#8f3525}
+.zoomInfo.neutral{background:#edf4f8;color:#425f72}
+@media(max-width:1050px){.layout{grid-template-columns:1fr}.panel{position:static;max-height:none}}
+@media(max-width:720px){.previews,.row,.row3,.btns{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <h1>Substack social preview szerkesztő</h1>
+  <p class="lead">Offline mini-szerkesztő 1200 × 630 px-es előnézeti képekhez. A képet és a szövegeket külön rétegen mozgathatod; közben azonnal látod a teljes képet és a választható középső kivágást.</p>
+
+  <div class="layout">
+    <aside class="panel">
+
+      <div class="section">
+        <h2>1. Alapkép</h2>
+        <label for="imageInput">Kép feltöltése</label>
+        <input id="imageInput" type="file" accept="image/*">
+        <div class="tip">Saját fotó, képernyőkép, diagram vagy generált illusztráció. A szöveget inkább itt tedd rá, ne a generált képre.</div>
+
+        <div class="row">
+          <div>
+            <label for="fit">Kezdő illesztés</label>
+            <select id="fit">
+              <option value="cover">Kitöltés</option>
+              <option value="contain">Teljes kép</option>
+            </select>
+          </div>
+          <div>
+            <label for="overlay">Sötétítés</label>
+            <input id="overlay" type="range" min="0" max="70" value="16">
+          </div>
+        </div>
+
+        <label class="zoomLabel" for="imageZoom"><span>Kép nagyítása</span><output id="zoomValue" class="zoomValue" for="imageZoom">–</output></label>
+        <input id="imageZoom" type="range" min="5" max="350" step="any" value="100" disabled>
+        <div class="zoomActions"><button class="secondary" id="nativeSize" disabled title="Az eredeti felbontás beállítása">100% – eredeti felbontás</button></div>
+        <div id="zoomInfo" class="zoomInfo neutral" role="status" aria-live="polite">Tölts fel egy képet a felbontás ellenőrzéséhez.</div>
+        <div class="row">
+          <button class="secondary" id="centerImage">Kép középre</button>
+          <button class="secondary" id="fitImage">Illesztés újra</button>
+        </div>
+        <div class="tip">A 100% itt azt jelenti, hogy az exportált képen egy eredeti képpont egy képpontnak felel meg. Az „Illesztés újra” ettől eltérően a vászonhoz igazít.</div>
+      </div>
+
+      <div class="section">
+        <h2>2. Szöveg</h2>
+
+        <label for="title">Cím</label>
+        <textarea id="title">A bejegyzés címe</textarea>
+
+        <label for="subtitle">Alcím</label>
+        <textarea id="subtitle">Rövid, egy-két soros kiegészítő szöveg</textarea>
+
+        <label for="footer">Alsó felirat</label>
+        <input id="footer" type="text" value="Rövid forrás vagy kiegészítés">
+
+        <label for="selected">Mozgatott elem</label>
+        <select id="selected">
+          <option value="title">Cím</option>
+          <option value="subtitle">Alcím</option>
+          <option value="footer">Alsó felirat</option>
+          <option value="image">Kép</option>
+        </select>
+
+        <div class="row">
+          <div>
+            <label for="fontSize">Betűméret</label>
+            <input id="fontSize" type="number" min="12" max="100" value="60">
+          </div>
+          <div>
+            <label for="textWidth">Szövegszélesség</label>
+            <input id="textWidth" type="number" min="250" max="950" value="900">
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="textColor">Szövegszín</label>
+            <select id="textColor">
+              <option value="#ffffff">Fehér</option>
+              <option value="#0d355c">Sötétkék</option>
+              <option value="#17212b">Sötétszürke</option>
+              <option value="#0f6fc6">Kék</option>
+            </select>
+          </div>
+          <div>
+            <label for="textWeight">Vastagság</label>
+            <select id="textWeight">
+              <option value="700">Félkövér</option>
+              <option value="400">Normál</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button class="secondary" id="centerSelected">Elem középre</button>
+          <button class="secondary" id="resetSelected">Elem vissza</button>
+        </div>
+
+        <div class="tip">Az elemet a vásznon egérrel vagy érintéssel is húzhatod. A kiválasztott elem körül vékony keret jelenik meg, de exportkor ez nem kerül a képre.</div>
+      </div>
+
+      <div class="section">
+        <h2>3. Vágásbiztonság</h2>
+        <label for="safe">Oldalsó biztonsági margó</label>
+        <input id="safe" type="number" min="100" max="220" value="150">
+        <label for="cropFormat">Középső kivágás előnézete</label>
+        <select id="cropFormat">
+          <option value="945">3:2 – Recent posts (945 × 630)</option>
+          <option value="630">1:1 – négyzet (630 × 630)</option>
+        </select>
+        <label class="check"><input id="showSafe" type="checkbox" checked> Zöld safe zone mutatása</label>
+        <label class="check"><input id="showCrop" type="checkbox" checked> Piros kivágási keret mutatása</label>
+        <div class="tip">A piros keret a választott, középre igazított kivágást jelzi; nem mozgatható. A zöld keret szerkesztési biztonsági ráhagyás. A Substack tényleges kivágása a megjelenéstől és beállításaitól is függhet.</div>
+      </div>
+
+      <div class="section">
+        <h2>4. Export</h2>
+        <div class="btns">
+          <button class="primary" id="downloadBtn">PNG letöltése</button>
+          <button class="danger" id="resetAll">Minden visszaállítása</button>
+        </div>
+        <div class="status">Az export mindig pontosan <strong>1200 × 630 px</strong>, segédkeretek nélkül. A kivágásválasztó csak az előnézetet módosítja.</div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <div class="card">
+        <h2>Szerkesztő – teljes 1200 × 630 kép</h2>
+        <div class="canvasShell">
+          <canvas id="editorCanvas" width="1200" height="630"></canvas>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:#2d7a58"></span>fontos tartalom biztonsági zónája</span>
+          <span><span class="dot" style="background:#c4483b"></span><span id="guideDesc">3:2 középre vágott előnézet</span></span>
+        </div>
+      </div>
+
+      <div class="previews">
+        <div class="card">
+          <h2 id="cropTitle">Substack Recent posts – kb. 3:2</h2>
+          <div class="cropBox"><canvas id="cropCanvas" width="945" height="630"></canvas></div>
+          <p class="note">A középső kivágás szemléltetése. Ha itt levágódik cím, szám, arc vagy logó, a kompozíció nem biztonságos ebben a nézetben.</p>
+        </div>
+        <div class="card">
+          <h2 id="smallTitle">Kis kártya – 3:2</h2>
+          <div class="cropBox"><canvas id="smallCanvas" width="472" height="315"></canvas></div>
+          <p class="note">Itt ellenőrizhető, hogy kis méretben is olvasható és vizuálisan erős marad-e.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+'use strict';
+const W=1200,H=630,CROP_W=945;
+const editor=document.getElementById('editorCanvas'), ctx=editor.getContext('2d');
+const crop=document.getElementById('cropCanvas'), cctx=crop.getContext('2d');
+const small=document.getElementById('smallCanvas'), sctx=small.getContext('2d');
+
+const $=id=>document.getElementById(id);
+const ui={
+ imageInput:$('imageInput'),fit:$('fit'),overlay:$('overlay'),imageZoom:$('imageZoom'),
+ title:$('title'),subtitle:$('subtitle'),footer:$('footer'),selected:$('selected'),
+ fontSize:$('fontSize'),textWidth:$('textWidth'),textColor:$('textColor'),textWeight:$('textWeight'),
+ safe:$('safe'),showSafe:$('showSafe'),showCrop:$('showCrop'),cropFormat:$('cropFormat')
+};
+
+const defaults={
+ title:{x:150,y:100,size:60,width:900,color:'#ffffff',weight:700},
+ subtitle:{x:150,y:330,size:28,width:900,color:'#ffffff',weight:400},
+ footer:{x:150,y:520,size:20,width:900,color:'#ffffff',weight:700}
+};
+const layers=JSON.parse(JSON.stringify(defaults));
+let bgImage=null;
+let imageState={x:0,y:0,scale:1,baseScale:1,drawW:1200,drawH:630};
+let currentObjectURL=null;
+
+function getSelectedLayer(){ return layers[ui.selected.value]; }
+
+function syncControls(){
+ const sel=ui.selected.value;
+ const text=layers[sel];
+ const isText=!!text;
+ ui.fontSize.disabled=!isText;
+ ui.textWidth.disabled=!isText;
+ ui.textColor.disabled=!isText;
+ ui.textWeight.disabled=!isText;
+ if(isText){
+   ui.fontSize.value=text.size;
+   ui.textWidth.value=text.width;
+   ui.textColor.value=text.color;
+   ui.textWeight.value=String(text.weight);
+ }
+}
+
+function getCanvasPoint(e){
+ const r=editor.getBoundingClientRect();
+ const p=e.touches?.[0]||e;
+ return {x:(p.clientX-r.left)*W/r.width,y:(p.clientY-r.top)*H/r.height};
+}
+
+// 100% = 1 képpont a forrásképből az export 1 képpontjára, függetlenül a vászon CSS-méretétől.
+function getFitScale(){
+ if(!bgImage)return 1;
+ const iw=bgImage.naturalWidth, ih=bgImage.naturalHeight;
+ return ui.fit.value==='contain' ? Math.min(W/iw,H/ih) : Math.max(W/iw,H/ih);
+}
+function clampImagePosition(){
+ if(!bgImage)return;
+ // Azon a tengelyen, amelyen a kép kitölti a vásznat, nem lehet kék/fedetlen csíkot előhúzni.
+ imageState.x=imageState.drawW>=W ? Math.min(0,Math.max(W-imageState.drawW,imageState.x)) : (W-imageState.drawW)/2;
+ imageState.y=imageState.drawH>=H ? Math.min(0,Math.max(H-imageState.drawH,imageState.y)) : (H-imageState.drawH)/2;
+}
+function refreshZoomControls(){
+ const value=$('zoomValue'), info=$('zoomInfo'), native=$('nativeSize');
+ if(!bgImage){
+   ui.imageZoom.disabled=true;native.disabled=true;
+   value.textContent='–';value.classList.remove('warn');
+   info.className='zoomInfo neutral';info.textContent='Tölts fel egy képet a felbontás ellenőrzéséhez.';
+   return;
+ }
+ const fitScale=getFitScale();
+ const actualPct=imageState.scale*100;
+ const minPct=ui.fit.value==='cover'?fitScale*100:5;
+ const maxPct=Math.max(350,Math.ceil(minPct*1.5),Math.ceil(actualPct));
+ ui.imageZoom.min=String(minPct);ui.imageZoom.max=String(maxPct);
+ ui.imageZoom.value=String(actualPct);ui.imageZoom.disabled=false;
+ value.textContent=(Math.round(actualPct*10)/10).toLocaleString('hu-HU',{maximumFractionDigits:1})+'%';
+ const enlarging=actualPct>100.00001;
+ value.classList.toggle('warn',enlarging);
+ native.disabled=ui.fit.value==='cover' && fitScale>1.000001;
+ native.title=native.disabled?'100%-on a kép nem töltené ki a vásznat. Válaszd a „Teljes kép” illesztést, ha mégis 100%-on szeretnéd látni.':'Eredeti 1:1 forrásképpont/exportképpont arány';
+ if(native.disabled){
+   info.className='zoomInfo warn';
+   info.textContent=`Forrás: ${bgImage.naturalWidth} × ${bgImage.naturalHeight} px. A 1200 × 630-as vászon kitöltéséhez legalább ${Math.round(minPct*10)/10}% szükséges; a kép így elkerülhetetlenül felnagyítódik.`;
+ } else if(enlarging){
+   info.className='zoomInfo warn';
+   info.textContent=`Forrás: ${bgImage.naturalWidth} × ${bgImage.naturalHeight} px. 100% fölött a program felnagyítja a forrásképpontokat; a finom részletek romolhatnak.`;
+ } else if(Math.abs(actualPct-100)<.01){
+   info.className='zoomInfo';
+   info.textContent=`Forrás: ${bgImage.naturalWidth} × ${bgImage.naturalHeight} px. Eredeti felbontás: 1 forrásképpont = 1 exportképpont.`;
+ } else {
+   info.className='zoomInfo';
+   info.textContent=`Forrás: ${bgImage.naturalWidth} × ${bgImage.naturalHeight} px. Nincs felnagyítás; az eredeti kép a vászonra kicsinyítve jelenik meg.`;
+ }
+}
+function setImageScale(nextScale,recenter=false){
+ if(!bgImage)return;
+ const oldCx=imageState.x+imageState.drawW/2, oldCy=imageState.y+imageState.drawH/2;
+ imageState.scale=nextScale;
+ imageState.drawW=bgImage.naturalWidth*nextScale;
+ imageState.drawH=bgImage.naturalHeight*nextScale;
+ imageState.x=(recenter?W/2:oldCx)-imageState.drawW/2;
+ imageState.y=(recenter?H/2:oldCy)-imageState.drawH/2;
+ clampImagePosition();
+ refreshZoomControls();
+}
+function fitImageToCanvas(){
+ if(!bgImage)return;
+ imageState.baseScale=getFitScale();
+ setImageScale(imageState.baseScale,true);
+}
+function updateImageDimsFromZoom(){
+ if(!bgImage)return;
+ // A csúszkán már nem az illesztéshez viszonyított szorzó, hanem a valódi felbontás %-a szerepel.
+ const minScale=ui.fit.value==='cover'?getFitScale():0;
+ const newScale=Math.max(Number(ui.imageZoom.value)/100,minScale);
+ setImageScale(newScale);
+}
+
+function wrapLines(c,text,maxWidth){
+ const paragraphs=String(text||'').split(/\n/);
+ const lines=[];
+ for(const para of paragraphs){
+   const words=para.split(/\s+/).filter(Boolean);
+   if(!words.length){ lines.push(''); continue; }
+   let line='';
+   for(const word of words){
+     const test=line?line+' '+word:word;
+     if(c.measureText(test).width>maxWidth && line){
+       lines.push(line); line=word;
+     } else line=test;
+   }
+   if(line) lines.push(line);
+ }
+ return lines;
+}
+
+function textValue(key){
+ if(key==='title')return ui.title.value;
+ if(key==='subtitle')return ui.subtitle.value;
+ return ui.footer.value;
+}
+
+function drawTextLayer(c,key,guide=false){
+ const L=layers[key];
+ const val=textValue(key);
+ c.save();
+ c.textBaseline='top';
+ c.font=`${L.weight} ${L.size}px system-ui,-apple-system,"Segoe UI",Arial,sans-serif`;
+ c.fillStyle=L.color;
+ const lineH=L.size*1.12;
+ const lines=wrapLines(c,val,L.width);
+ lines.forEach((line,i)=>c.fillText(line,L.x,L.y+i*lineH));
+ const h=Math.max(lineH,lines.length*lineH);
+ if(guide && ui.selected.value===key){
+   c.strokeStyle='#f5b400';
+   c.lineWidth=3;
+   c.setLineDash([9,6]);
+   c.strokeRect(L.x-8,L.y-8,L.width+16,h+16);
+ }
+ c.restore();
+ return {x:L.x,y:L.y,w:L.width,h};
+}
+function activeCropWidth(){return Number(ui.cropFormat.value)||CROP_W;}
+
+function drawScene(c, guides=false){
+ c.clearRect(0,0,W,H);
+
+ // fallback background
+ const g=c.createLinearGradient(0,0,W,H);
+ g.addColorStop(0,'#0d355c');g.addColorStop(.55,'#0f6fc6');g.addColorStop(1,'#19a0d8');
+ c.fillStyle=g;c.fillRect(0,0,W,H);
+
+ if(bgImage){
+   c.drawImage(bgImage,imageState.x,imageState.y,imageState.drawW,imageState.drawH);
+ }
+ const a=Math.max(0,Math.min(70,Number(ui.overlay.value)||0))/100;
+ if(a>0){c.fillStyle=`rgba(7,25,43,${a})`;c.fillRect(0,0,W,H);}
+
+ drawTextLayer(c,'title',guides);
+ drawTextLayer(c,'subtitle',guides);
+ drawTextLayer(c,'footer',guides);
+
+ if(guides && ui.selected.value==='image' && bgImage){
+   c.save();
+   c.strokeStyle='#f5b400';c.lineWidth=3;c.setLineDash([9,6]);
+   c.strokeRect(imageState.x,imageState.y,imageState.drawW,imageState.drawH);
+   c.restore();
+ }
+ if(guides && ui.showSafe.checked){
+   const safe=Math.max(100,Math.min(220,Number(ui.safe.value)||150));
+   c.save();c.strokeStyle='#2d7a58';c.lineWidth=3;c.setLineDash([14,10]);
+   c.strokeRect(safe,30,W-safe*2,H-60);c.restore();
+ }
+ if(guides && ui.showCrop.checked){
+   const cw=activeCropWidth(),x=(W-cw)/2;
+   c.save();c.strokeStyle='#c4483b';c.lineWidth=3;c.setLineDash([10,8]);
+   c.strokeRect(x,18,cw,H-36);c.restore();
+ }
+}
+
+function render(){
+ drawScene(ctx,true);
+ const off=document.createElement('canvas');off.width=W;off.height=H;
+ const o=off.getContext('2d');drawScene(o,false);
+ const cw=activeCropWidth(),sx=(W-cw)/2;
+ if(crop.width!==cw)crop.width=cw;
+ if(crop.height!==H)crop.height=H;
+ cctx.clearRect(0,0,crop.width,crop.height);
+ cctx.drawImage(off,sx,0,cw,H,0,0,crop.width,crop.height);
+ const sw=cw===CROP_W?472:315,sh=315;
+ if(small.width!==sw)small.width=sw;
+ if(small.height!==sh)small.height=sh;
+ sctx.clearRect(0,0,small.width,small.height);
+ sctx.drawImage(off,sx,0,cw,H,0,0,small.width,small.height);
+ $('cropTitle').textContent=cw===CROP_W?'Substack Recent posts – kb. 3:2':'Négyzetes előnézet – 1:1';
+ $('smallTitle').textContent=cw===CROP_W?'Kis kártya – 3:2':'Kis kártya – 1:1';
+ $('guideDesc').textContent=cw===CROP_W?'3:2 középre vágott előnézet':'1:1 középre vágott előnézet';
+ window.cleanCanvas=off;
+}
+
+function selectedTextChanged(){
+ const L=getSelectedLayer(); if(!L)return;
+ L.size=Number(ui.fontSize.value)||L.size;
+ L.width=Number(ui.textWidth.value)||L.width;
+ L.color=ui.textColor.value;
+ L.weight=Number(ui.textWeight.value);
+ render();
+}
+
+ui.selected.addEventListener('change',()=>{syncControls();render()});
+[ui.title,ui.subtitle,ui.footer,ui.overlay,ui.safe,ui.showSafe,ui.showCrop,ui.cropFormat].forEach(el=>{
+ el.addEventListener('input',render); el.addEventListener('change',render);
+});
+[ui.fontSize,ui.textWidth,ui.textColor,ui.textWeight].forEach(el=>{
+ el.addEventListener('input',selectedTextChanged);el.addEventListener('change',selectedTextChanged);
+});
+ui.imageZoom.addEventListener('input',()=>{updateImageDimsFromZoom();render()});
+ui.fit.addEventListener('change',()=>{fitImageToCanvas();render()});
+
+ui.imageInput.addEventListener('change',e=>{
+ const file=e.target.files?.[0];
+ if(!file){bgImage=null;refreshZoomControls();render();return;}
+ const url=URL.createObjectURL(file);
+ const im=new Image();
+ im.onload=()=>{
+   if(currentObjectURL)URL.revokeObjectURL(currentObjectURL);
+   currentObjectURL=url;
+   bgImage=im;
+   fitImageToCanvas();render();
+ };
+ im.onerror=()=>{URL.revokeObjectURL(url);alert('A kiválasztott kép nem nyitható meg. Válassz PNG-, JPEG- vagy más támogatott képfájlt.');};
+ im.src=url;
+});
+
+$('fitImage').addEventListener('click',()=>{fitImageToCanvas();render()});
+$('nativeSize').addEventListener('click',()=>{
+ if(!bgImage || (ui.fit.value==='cover' && getFitScale()>1.000001))return;
+ setImageScale(1,true);render();
+});
+$('centerImage').addEventListener('click',()=>{
+ if(!bgImage)return;
+ imageState.x=(W-imageState.drawW)/2;
+ imageState.y=(H-imageState.drawH)/2;
+ clampImagePosition();render();
+});
+$('centerSelected').addEventListener('click',()=>{
+ const sel=ui.selected.value;
+ if(sel==='image'){ $('centerImage').click(); return; }
+ const L=layers[sel];L.x=(W-L.width)/2;render();
+});
+$('resetSelected').addEventListener('click',()=>{
+ const sel=ui.selected.value;
+ if(sel==='image'){fitImageToCanvas();render();return;}
+ Object.assign(layers[sel],JSON.parse(JSON.stringify(defaults[sel])));
+ syncControls();render();
+});
+$('resetAll').addEventListener('click',()=>{
+ Object.keys(defaults).forEach(k=>Object.assign(layers[k],JSON.parse(JSON.stringify(defaults[k]))));
+ ui.title.value='A bejegyzés címe';
+ ui.subtitle.value='Rövid, egy-két soros kiegészítő szöveg';
+ ui.footer.value='Rövid forrás vagy kiegészítés';
+ ui.overlay.value=16;ui.safe.value=150;ui.showSafe.checked=true;ui.showCrop.checked=true;
+ ui.cropFormat.value=String(CROP_W);
+ ui.selected.value='title';ui.imageInput.value='';bgImage=null;
+ if(currentObjectURL){URL.revokeObjectURL(currentObjectURL);currentObjectURL=null;}
+ refreshZoomControls();syncControls();render();
+});
+$('downloadBtn').addEventListener('click',()=>{
+ render();
+ const a=document.createElement('a');
+ a.download='substack-preview-1200x630.png';
+ a.href=window.cleanCanvas.toDataURL('image/png');
+ a.click();
+});
+
+// Dragging
+let dragging=false,last=null;
+function startDrag(e){
+ e.preventDefault();dragging=true;editor.classList.add('dragging');last=getCanvasPoint(e);
+}
+function moveDrag(e){
+ if(!dragging)return;e.preventDefault();
+ const p=getCanvasPoint(e),dx=p.x-last.x,dy=p.y-last.y;last=p;
+ const sel=ui.selected.value;
+ if(sel==='image'){
+   if(bgImage){imageState.x+=dx;imageState.y+=dy;clampImagePosition();}
+ } else {
+   layers[sel].x+=dx;layers[sel].y+=dy;
+ }
+ render();
+}
+function endDrag(){dragging=false;editor.classList.remove('dragging');}
+editor.addEventListener('mousedown',startDrag);
+window.addEventListener('mousemove',moveDrag);
+window.addEventListener('mouseup',endDrag);
+editor.addEventListener('touchstart',startDrag,{passive:false});
+window.addEventListener('touchmove',moveDrag,{passive:false});
+window.addEventListener('touchend',endDrag);
+
+syncControls();refreshZoomControls();render();
+</script>
+</body>
+</html>
